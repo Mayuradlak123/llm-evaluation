@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+jinja2
+langchain
+langchain-groq
+langgraph
+langsmith
+python-dotenv
+python-multipart
+redis
+chromadb
+neo4j
+langgraph-checkpoint-redis>=0.4.0
+pybreaker

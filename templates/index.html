@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangSmith Evaluator | Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #1a1a2e, #16213e);
+            min-height: 100vh;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+        h1 { font-family: 'Outfit', sans-serif; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .chat-container {
+            height: calc(100vh - 200px);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .chat-container::-webkit-scrollbar { width: 6px; }
+        .chat-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        
+        .message-user {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            align-self: flex-end;
+            border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
+        }
+        .message-ai {
+            background: rgba(255, 255, 255, 0.08);
+            align-self: flex-start;
+            border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
+        }
+        .loader {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex flex-col items-center">
+
+    <div class="w-full max-w-4xl flex flex-col h-screen p-4 md:p-8">
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-extrabold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">LangSmith Evaluator</h1>
+                <p class="text-xs text-gray-500 uppercase tracking-widest">Llama 3.1 + LangGraph + Memory</p>
+            </div>
+            <div class="flex items-center space-x-2 text-xs text-green-400 bg-green-400/10 px-3 py-1 rounded-full border border-green-400/20">
+                <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                <span>Chroma + Neo4j Active</span>
+            </div>
+        </header>
+
+        <div id="chat-container" class="chat-container flex flex-col space-y-4 overflow-y-auto p-4 glass-card rounded-2xl mb-6">
+            <!-- Messages will appear here -->
+            <div class="message-ai p-4 max-w-[80%] shadow-lg">
+                Hello! I am your AI assistant integrated with LangSmith, ChromaDB, and Neo4j. How can I help you today?
+            </div>
+        </div>
+
+        <div class="relative w-full">
+            <form id="chat-form" class="flex space-x-3 items-center">
+                <div class="relative flex-grow">
+                    <textarea 
+                        id="query-input" 
+                        rows="1" 
+                        class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
+                        placeholder="Type your message..."
+                        required
+                    ></textarea>
+                    <div id="loading" class="absolute right-4 top-1/2 -translate-y-1/2 loader"></div>
+                </div>
+                <button 
+                    type="submit" 
+                    id="send-btn"
+                    class="bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const queryInput = document.getElementById('query-input');
+        const chatContainer = document.getElementById('chat-container');
+        const loading = document.getElementById('loading');
+        const sendBtn = document.getElementById('send-btn');
+
+        function appendMessage(text, isUser = false) {
+            const div = document.createElement('div');
+            div.className = `${isUser ? 'message-user' : 'message-ai'} p-4 max-w-[80%] shadow-lg animate-fade-in`;
+            div.textContent = text;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = queryInput.value.trim();
+            if (!query) return;
+
+            // Add user message to UI
+            appendMessage(query, true);
+            queryInput.value = '';
+            
+            // UI State
+            loading.style.display = 'block';
+            queryInput.disabled = true;
+            sendBtn.disabled = true;
+
+            const aiMessageDiv = document.createElement('div');
+            aiMessageDiv.className = 'message-ai p-4 max-w-[80%] shadow-lg animate-fade-in text-gray-400 italic';
+            aiMessageDiv.textContent = 'Processing...';
+            chatContainer.appendChild(aiMessageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            try {
+                const formData = new FormData();
+                formData.append('query', query);
+
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = "";
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.slice(6).trim();
+                            if (dataStr === '[DONE]') continue;
+                            
+                            try {
+                                const data = JSON.parse(dataStr);
+                                if (data.type === 'node' && data.node === 'agent') {
+                                    aiMessageDiv.classList.remove('italic', 'text-gray-400');
+                                    aiMessageDiv.textContent = data.content;
+                                } else if (data.type === 'status') {
+                                    console.log(`Node ${data.node} completed`);
+                                } else if (data.type === 'error') {
+                                    aiMessageDiv.textContent = 'Error: ' + data.content;
+                                }
+                            } catch (e) {
+                                console.error("Error parsing SSE data", e);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                aiMessageDiv.textContent = 'Error: Could not connect to the server.';
+            } finally {
+                loading.style.display = 'none';
+                queryInput.disabled = false;
+                sendBtn.disabled = false;
+                queryInput.focus();
+            }
+        });
+
+        // Handle Enter key for submission (but allow Shift+Enter for new line)
+        queryInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+    </style>
+
+</body>
+</html>
