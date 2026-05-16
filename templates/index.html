@@ -158,11 +158,14 @@
                             
                             try {
                                 const data = JSON.parse(dataStr);
-                                if (data.type === 'node' && data.node === 'agent') {
-                                    aiMessageDiv.classList.remove('italic', 'text-gray-400');
-                                    aiMessageDiv.textContent = data.content;
-                                } else if (data.type === 'status') {
-                                    console.log(`Node ${data.node} completed`);
+                                if (data.type === 'node') {
+                                    if (data.node === 'guardrails' || data.node === 'generator') {
+                                        aiMessageDiv.classList.remove('italic', 'text-gray-400');
+                                        aiMessageDiv.textContent = data.content;
+                                    } else {
+                                        // Update progress text
+                                        aiMessageDiv.textContent = data.content;
+                                    }
                                 } else if (data.type === 'error') {
                                     aiMessageDiv.textContent = 'Error: ' + data.content;
                                 }
