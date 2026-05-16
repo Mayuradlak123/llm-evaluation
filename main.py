@@ -34,7 +34,13 @@ def call_llm(state: AgentState):
         def get_llm_response():
             llm = ChatGroq(model="llama-3.3-70b-versatile")
             prompt = ChatPromptTemplate.from_messages([
-                ("system", "You are a helpful assistant. Keep your answers very short, direct, and concise. Avoid all rich text formatting. Plain text only."),
+                ("system", (
+                    "You are a specialized AI Evaluation and Tech Assistant. Your scope is strictly limited to AI, "
+                    "Large Language Models, System Design, Databases (Neo4j, ChromaDB, Redis), and Software Engineering. "
+                    "If a user asks a question outside of these topics, politely inform them that the question is out of scope. "
+                    "Keep your answers very short, direct, and concise. Avoid all rich text formatting. Plain text only. "
+                    "Do not hallucinate or provide information outside your expertise."
+                )),
                 ("placeholder", "{messages}"),
                 ("human", "{query}")
             ])
